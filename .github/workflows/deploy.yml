@@ -1,4 +1,4 @@
-name: Build and Deploy GitBook to GitHub Pages
+name: Build and Deploy to GitHub Pages
 
 on:
   push:
@@ -27,19 +27,19 @@ jobs:
         with:
           node-version: "16"
 
-      - name: Install HonKit (GitBook maintained fork)
-        run: |
-          npm install -g honkit
-          honkit --version
+      - name: Install HonKit
+        run: npm install -g honkit
 
-      - name: Install plugins
-        run: honkit install || true
+      - name: Check HonKit version
+        run: honkit --version
 
       - name: Build
-        run: honkit build . ./_book || honkit build
+        run: honkit build . ./_book 2>&1
 
-      - name: Verify output
-        run: ls -la _book/
+      - name: Check output
+        run: |
+          echo "--- Output files ---"
+          ls -la _book/ || echo "_book directory not found!"
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
