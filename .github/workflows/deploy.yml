@@ -25,18 +25,21 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "16"
 
-      - name: Install GitBook CLI
+      - name: Install HonKit (GitBook maintained fork)
         run: |
-          npm install -g gitbook-cli
-          gitbook fetch 3.2.3
+          npm install -g honkit
+          honkit --version
 
-      - name: Install GitBook plugins
-        run: gitbook install
+      - name: Install plugins
+        run: honkit install || true
 
-      - name: Build GitBook
-        run: gitbook build
+      - name: Build
+        run: honkit build . ./_book || honkit build
+
+      - name: Verify output
+        run: ls -la _book/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

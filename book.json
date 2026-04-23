@@ -7,9 +7,10 @@
     "chapter-fold",
     "code",
     "github",
-    "-lunr",
-    "-search",
-    "search-pro"
+    "search",
+    "search-pro",
+    "-sharing",
+    "-fontsettings"
   ],
   "pluginsConfig": {
     "code": {
