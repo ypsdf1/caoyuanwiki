@@ -1,0 +1,27 @@
+{
+  "title": "MC草原探险服Wiki",
+  "author": "本服管理团队",
+  "description": "草原探险服务器官方文档",
+  "language": "zh-hans",
+  "plugins": [
+    "chapter-fold",
+    "code",
+    "github",
+    "-lunr",
+    "-search",
+    "search-pro"
+  ],
+  "pluginsConfig": {
+    "code": {
+      "lineNumbers": true,
+      "copyButtons": true
+    },
+    "github": {
+      "url": "https://github.com/ypsdf1/caoyuanwiki"
+    },
+    "search-pro": {
+      "cutWordLib": "nodejieba",
+      "defineWord": []
+    }
+  }
+}
