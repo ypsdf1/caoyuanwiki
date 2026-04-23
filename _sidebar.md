@@ -1,0 +1,33 @@
+- **首页** [README](README.md)
+- **快速链接**
+  - [官网](https://play.ypshidifu.cn/)
+  - [群聊列表](https://play.ypshidifu.cn/qun/index.html)
+  - [工单求助](https://github.com/ypsdf1/caoyuanwiki/issues/new/choose)
+- **基础入门**
+  - [用户协议](wikis/player.md)
+  - [注册和登陆](wikis/login.md)
+  - [指令帮助](wikis/plays.md)
+  - [游戏内控制台使用](wikis/console.md)
+  - [加速GitHub](wikis/github.md)
+- **游戏功能**
+  - [领地保护](wikis/dom.md)
+  - [地图画](wikis/map.md)
+  - [手机app](wikis/tags.md)
+  - [皮肤更新](wikis/skin.md)
+  - [小黑塔使用](wikis/end.md)
+  - [袭击塔的使用](wikis/bad.md)
+- **经济系统**
+  - [充值游戏币](wikis/cz.md)
+  - [如何获得游戏币](wikis/ccurrency.md)
+  - [游戏商人和转账的操作](wikis/shop.md)
+  - [奖励领取](wikis/reward.md)
+  - [邀请奖励规则](wikis/invite.md)
+- **规则与管理**
+  - [作弊行为定义和处理方式](wikis/Cheaters.md)
+  - [如何处理作弊者](wikis/kick.md)
+  - [冻结的额外说明](wikis/ice.md)
+  - [管理员操作指南](wikis/op.md)
+- **其他**
+  - [赞助名单](wikis/sponsor.md)
+  - [友链相关](wikis/server.md)
+  - [提交文档/反馈错误](wikis/issues.md)
