@@ -43,12 +43,6 @@
 - 活动有效期：长期有效
 - 点击底部官方群按钮，长按识别右侧二维码，将相关内容截图至官方群内即可
 
-## 4.关注官方指定视频平台账号
-- b站(2选1)：<br>[史蒂夫(管理员)](https://space.bilibili.com/443788688?spm_id_from=333.1007.0.0) <br> [十当233(腐竹)](https://space.bilibili.com/603661561/?spm_id_from=333.999.0.0)
-- 抖音(2选1)：<br>史蒂夫(管理员)：sdf1726754243<br>十当233(腐竹)：mccaoyuantanxian
-![](https://img.yunr.us.kg/api/cfile/AgACAgUAAyEGAASPllS8AANMZ1kpv6ZTwg-OEL0GfYamJIHcCgYAAjHEMRulD8hWJMd_KaU76R0BAAMCAAN3AAM2BA)
-- 快手(2选1)：<br>史蒂夫(管理员)：shidifujs<br>十当233(腐竹)：2912400575
-![](https://img.yunr.us.kg/api/cfile/AgACAgUAAyEGAASPllS8AANLZ1kpuMQBSy3o0KpUynTKkU_SBJUAAjDEMRulD8hWyGdMIptss0QBAAMCAAN3AAM2BA)
 
 ### 活动细则
 - 活动有效期：长期有效
