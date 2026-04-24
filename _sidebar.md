@@ -1,7 +1,5 @@
 - **首页** [README](README.md)
 - **快速链接**
-  - [官网](https://play.ypshidifu.cn/)
-  - [群聊列表](https://play.ypshidifu.cn/qun/index.html)
   - [工单求助](https://github.com/ypsdf1/caoyuanwiki/issues/new/choose)
 - **基础入门**
   - [用户协议](wikis/player.md)
