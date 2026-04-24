@@ -1,0 +1,55 @@
+name: Auto Reply & Label New Issues
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  auto-reply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add label and reply
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const issueNumber = issue.number;
+            const issueAuthor = issue.user.login;
+            const issueTitle = issue.title;
+
+            // 1. 添加"待处理"标签
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['待处理']
+              });
+              console.log(`✅ 已为 Issue #${issueNumber} 添加"待处理"标签`);
+            } catch (error) {
+              console.error(`❌ 添加标签失败: ${error.message}`);
+            }
+
+            // 2. 自动回复评论
+            const replyBody = `👋 感谢 @${issueAuthor} 提交反馈！
+
+你的 Issue **#${issueNumber}**（${issueTitle}）已收到，我们已标记为 **待处理**，将尽快安排处理。
+
+---
+
+> 📌 **温馨提示**：请确保你的 Issue 包含足够的信息（如游戏内截图、具体操作步骤等），以便我们更快定位和解决问题。如果后续有补充信息，请直接在此 Issue 下回复即可。`;
+
+            try {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: replyBody
+              });
+              console.log(`✅ 已回复 Issue #${issueNumber}`);
+            } catch (error) {
+              console.error(`❌ 回复失败: ${error.message}`);
+            }
