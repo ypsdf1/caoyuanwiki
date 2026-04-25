@@ -68,4 +68,4 @@
 使用指令`/back`返回上一个地点
 
 ---
-欢迎您补充！补充时，请使用markdown格式，具体[参考提交文档的步骤](help.md)
+欢迎您补充！补充时，请使用markdown格式，具体[参考提交文档的步骤](https://github.com/ypsdf1/caoyuanwiki/issues/new/choose)
