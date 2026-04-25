@@ -1,9 +1,10 @@
 - **首页** [README](README.md)
+- **快速链接**
+  - [工单求助](https://github.com/ypsdf1/caoyuanwiki/issues/new/choose)
 - **基础入门**
   - [用户协议](wikis/player.md)
   - [注册和登陆](wikis/login.md)
   - [指令帮助](wikis/plays.md)
-  - [游戏内控制台使用](wikis/console.md)
 - **游戏功能**
   - [领地保护](wikis/dom.md)
   - [地图画](wikis/map.md)
