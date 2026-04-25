@@ -7,14 +7,8 @@
   - [指令帮助](wikis/plays.md)
 - **游戏功能**
   - [领地保护](wikis/dom.md)
-  - [地图画](wikis/map.md)
   - [皮肤更新](wikis/skin.md)
-  - [小黑塔使用](wikis/end.md)
 - **经济系统**
   - [充值游戏币](wikis/cz.md)
-  - [游戏商人和转账的操作](wikis/shop.md)
-  - [奖励领取](wikis/reward.md)
+  - [游戏币与转账](wikis/money.md)
   - [邀请奖励规则](wikis/invite.md)
-- **其他**
-  - [管理员操作指南](wikis/op.md)
-  - [提交文档/反馈错误](wikis/issues.md)

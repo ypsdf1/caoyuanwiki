@@ -1,8 +1,21 @@
 {
-  "title": "MC草原探险服Wiki",
-  "author": "本服管理团队",
-  "description": "草原探险服务器官方文档",
-  "language": "zh-hans",
-  "plugins": [],
-  "pluginsConfig": {}
+  "plugins": [
+    "chapter-fold",
+    "sidebar-style",
+    "code",
+    "github"
+  ],
+  "pluginsConfig": {
+    "sidebar-style": {
+      "title": "MC草原探险服Wiki",
+      "author": "本服管理团队"
+    },
+    "code": {
+      "lineNumbers": true,
+      "copyButtons": true
+    },
+    "github": {
+      "url": "https://github.com/yunshuangqwq/minecraftcaoyuantanxianwiki"
+    }
+  }
 }

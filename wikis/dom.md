@@ -35,14 +35,18 @@
 /dominion contract namee=名字  //缩小
 
 示例：
-/dominion expand name=example 2
-/dominion contract name=example 2
+/dominion expand name=example 
+/dominion contract name=example 
 ```
 
-## 5.领地设置
-聊天框输入指令`/dom`，打开菜单，随后点击`成员管理`添加玩家为您的领地成员，并给其配置对应的权限，点击‘设置传送点’，将您所站的位置设置为领地传送的地点，点击`访客权限`可以为所有过路的玩家设置权限，点击`环境设置`可以设置是否允许破坏农作物、显示/隐藏领地边界等信息
+## 5.领地设置<bt>
 
-
+聊天框输入指令`/dom`，打开菜单，点击`我的领地`→`名字`→管理，即可进入该领地管理面板，您可以在此处：<br>
+- 添加领地成员
+- 删除领地成员
+- 设置领地访客权限
+- 设置领地环境(如是否允许破坏农作物等)
+- 设置领地传送点
 ## 6.领地转让
 输入指令`/dom give 领地名 受让玩家名字 force`即可完成转让，**请谨慎执行该操作，该操作不可撤销！**
 示例：/dominion give test example force
