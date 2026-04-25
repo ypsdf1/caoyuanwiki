@@ -1,0 +1,49 @@
+name: Auto Reply & Label New Issues
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  auto-reply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add label and post comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issueNumber = context.payload.issue.number;
+            const issueAuthor = context.payload.issue.user.login;
+            const issueTitle  = context.payload.issue.title;
+
+            console.log(`触发 Issue #${issueNumber}，作者：${issueAuthor}`);
+
+            // 1. 添加"待处理"标签
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: issueNumber,
+              labels: ['待处理']
+            });
+            console.log('标签添加完成');
+
+            // 2. 自动回复
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: issueNumber,
+              body: [
+                `👋 感谢 @${issueAuthor} 提交反馈！`,
+                ``,
+                `你的 Issue **#${issueNumber}**（${issueTitle}）已收到，已标记为 **待处理**，我们会尽快安排处理。`,
+                ``,
+                `---`,
+                `> 📌 **温馨提示**：如果你的问题包含截图或详细的复现步骤，可以直接在此 Issue 下补充回复，有助于我们更快定位问题。`
+              ].join('\n')
+            });
+            console.log('评论发布完成');
