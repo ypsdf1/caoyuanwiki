@@ -48,10 +48,10 @@
 - 设置领地环境(如是否允许破坏农作物等)
 - 设置领地传送点
 ## 6.领地转让
-输入指令`/dom give 领地名 受让玩家名字 force`即可完成转让，**请谨慎执行该操作，该操作不可撤销！**
+输入指令`/dom give 领地名 受让玩家名字 force`即可完成转让，**请谨慎执行该操作，该操作不可撤销！**<br>
 示例：/dominion give test example force
 
 
 ## 7. 删除领地
-输入指令`/dom delete 领地名 force`即可删除领地，**请谨慎执行该操作，该操作不可撤销！**
+输入指令`/dom delete 领地名 force`即可删除领地，**请谨慎执行该操作，该操作不可撤销！**<br>
 示例：/dominion delete test force

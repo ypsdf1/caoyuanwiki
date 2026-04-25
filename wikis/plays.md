@@ -3,16 +3,15 @@
 
 # menu
 1. 领地系统(dom)
-2. 地图画(tomap)
-3. home(home)
-4. 返回上一个位置(back)
+2. home(home)
+3. 返回上一个位置(back)
 
 ## 一、领地系统(dom)
 ### 1. 创建领地
 - 有两种方式创建领地：
 1. 使用普通的弓箭(小白掉落的那种)，对着建筑，`左右键选取A、B`两点，然后根据指令提示使用`/dom create [名字]`创建
 2. 在聊天框输入`dom`，点击`创建领地`，系统会根据当前环境自动创建一个(最大9x9x9)的领地，若太大、太小可进行调整
-![](https://img.yunr.us.kg/api/cfile/AgACAgUAAyEGAASO2xA4AAMfZxeIgD_4AAEJx8fUKVoq66tpf1cvAAKdwDEbmWy5VP0Dt3dWLhESAQADAgADeQADNgQ)
+
 
 ### 2. 扩建&缩小
 指令：
@@ -31,19 +30,12 @@
 ### 4. 领地成员&访客配置
 - 成员配置<br>
 输入指令`/dom`，点击`我的领地-领地名-管理`，即可配置你的领地成员，点击`添加成员-搜索成员`把玩家名字输入进去，即可自动添加。
-![](https://img.yunr.us.kg/api/cfile/AgACAgUAAyEGAASO2xA4AAMgZxeSl_MIu31pk_vWZ_Yns3vq8pYAArLAMRuZbLlU52PNMsfSjvABAAMCAAN5AAM2BA)
-
-![](https://img.yunr.us.kg/api/cfile/AgACAgUAAyEGAASO2xA4AAMhZxeTZ-bWS2pWwGdrU5mYL9CXVSwAArPAMRuZbLlUKdAHq7hBYrMBAAMCAAN5AAM2BA)
-
-![](https://img.yunr.us.kg/api/cfile/AgACAgUAAyEGAASO2xA4AAMiZxeTbDDOD_ptPVxTGuY3mHnKFT4AArXAMRuZbLlUhItX67TqpIcBAAMCAAN5AAM2BA)
-
 当赋予玩家`领地管理员`身份时，玩家将拥有除转让删除以外的所有权限，包括添加成员、删除成员(非管理员)权限等
 
 
 - 访客配置<br>
 
 输入指令`/dom`，点击`我的领地-领地名-管理-访客权限`即可编辑访客(非领地成员)的权限
-![](https://img.yunr.us.kg/api/cfile/AgACAgUAAyEGAASO2xA4AAMjZxeVxPylHEAxz3X31wgBSXS3aHUAArjAMRuZbLlUwjr0DqMK4RgBAAMCAAN4AAM2BA)
 
 领地成员权限＞访客权限，添加成员进入领地成员时，默认给予访客权限的同等权限，领地主可以任意配置每个成员的权限。
 
