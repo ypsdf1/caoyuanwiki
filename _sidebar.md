@@ -12,3 +12,5 @@
   - [充值游戏币](wikis/cz.md)
   - [游戏币与转账](wikis/money.md)
   - [邀请奖励规则](wikis/invite.md)
+**云背包**
+  - [云背包](wikis/beibao.md)

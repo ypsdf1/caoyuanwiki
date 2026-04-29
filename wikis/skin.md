@@ -47,7 +47,7 @@
 随后选择刚上传的皮肤，点击`使用`按钮
 ![](../img/skin_5.png)
 ### 2.1 官网上传
-打开[Miecraft官网](https://www.minecraft.net/zh-hans/msaprofile/mygames/editskin)，点击`登录`，点击`我的游戏`，选择`minecraft java`版，点击`账户`→`档案`→`所有游戏`→`更换皮肤`
+打开[Miecraft官网](https://www.minecraft.net/zh-hans/msaprofile/mygames/editskin)，点击`登录`，点击`我的游戏`，点击`账户`→`档案`→`所有游戏`→`更换皮肤`
 需要注意的是，网易会尝试节流，遇到如下弹窗，点击`继续留在Minecraft.net`或`stay on minecraft.net`
 ![](../img/skin_6.png)
 ![](../img/skin_7.png)
