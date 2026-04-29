@@ -32,8 +32,15 @@
 *详见GitHub或gitee的release页面*
 
 ## 插件源码
-[**github**](https://github.com/ypsdf1/CY_beibao)
+[**github**](https://github.com/ypsdf1/CY_beibao)<br>
 [**gitee**](https://gitee.com/nihaoshidifu/cy_beibao)
+
+## 版本更新
+| 版号 | 内容 | 正式版/测试版 |
+| --- | --- | --- |
+| 1.0 |  第一个测试版 | 测试版 |
+| 1.1 | 第二个测试版，允许翻页 | 测试版 |
+| 1.3 | 第一个正式版，加入商城、管理原面板等功能 | 正式版 |
 
 ## 注意事项
 - 本项目由Xiaomi Mimo大模型开发
