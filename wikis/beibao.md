@@ -5,7 +5,7 @@
 
  ## 安装必看
  1. [可选前置] **Vault** 经济插件
- 2. [可选前置] sdf1 插件(开发中)
+ 2. [可选前置] **[sdf1 插件](/#/wikis/sdf1)**
 ## 安装方法
  1. 下载云背包插件
  2. 将插件放入服务器件目录
@@ -29,7 +29,8 @@
 5. 库存修改，使用指令`/cy add/set/remove ID/shopname 数量`即可修改。<br>值得注意的是，`id/shopname`是2选1条件，ID是商品唯一ID，shopname是商品名字，填入任意一个即可修改
 
 ## 下载地址
-*详见GitHub或gitee的release页面*
+[官方下载](https://pan.ypshidifu.cn/s/Ygc0) 提取码：sdf1<br>
+[bbsmc分流](https://bbsmc.net/plugin/cy-beibao)
 
 ## 插件源码
 [**github**](https://github.com/ypsdf1/CY_beibao)<br>
