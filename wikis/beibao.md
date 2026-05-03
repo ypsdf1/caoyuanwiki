@@ -29,7 +29,7 @@
 5. 库存修改，使用指令`/cy add/set/remove ID/shopname 数量`即可修改。<br>值得注意的是，`id/shopname`是2选1条件，ID是商品唯一ID，shopname是商品名字，填入任意一个即可修改
 
 ## 下载地址
-[官方下载](https://pan.ypshidifu.cn/s/Ygc0) 提取码：sdf1<br>
+[官方下载](https://pan.ypshidifu.cn/s/n6hG)<br>
 [bbsmc分流](https://bbsmc.net/plugin/cy-beibao)
 
 ## 插件源码
