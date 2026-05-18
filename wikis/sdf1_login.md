@@ -190,6 +190,13 @@ smtp加密=true
 基础经济奖励=100
 经济奖励每评分=50.0
 报单人积分奖励=10
+# ---- 签到盲盒奖励 ----
+签到固定金额=0
+签到最小金额=10
+签到最大金额=100
+签到给积分=true
+签到积分数量=10
+
 
 ```
 
@@ -224,6 +231,24 @@ github.com
 白名单玩家:
 
 ```
+### 2.2.6 radio_config.txt
+```txt
+# ============ Sdf1 Radio Config ============
+#
+# resource-pack-url
+#   填外部地址（HTTP或HTTPS均可）
+#   例: https://example.com/radiopack.zip
+#   留空 = 使用内置HTTP服务
+#
+# http-port
+#   内置HTTP端口（仅resource-pack-url为空时生效）
+#
+# ============ Settings ===============
+
+resource-pack-url=https://*.ypshidifu.cn/|*.mcserver.ccwu.cc
+http-port=443
+```
+- radio_config这里可以使用通配符域名，当使用通配符时，系统随机生成url，拒绝过资源包的玩家，每次都会收到提示。并且自1.2版本起，拒绝资源包=放弃游玩服务器。如果您无需广播功能，可以不放ogg文件进入`./plugin/radio/ogg`。这样服务端不会自动生成资源包，也不会强制下载了
 
 ## 3. 指令参数及介绍
 
@@ -232,6 +257,9 @@ github.com
 - reg 注册账号<br>
 - login 登录账号<br>
 - l 登录账号<br>
+- sdf1_login del 删除玩家账号<br>
+- sdf1_login radio 停止播放广播<br>
+- sdf1_login radio reload 重载广播并重新打包资源包
 
 ## 运行截图
 
