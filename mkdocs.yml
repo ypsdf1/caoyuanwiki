@@ -1,0 +1,73 @@
+site_name: MC草原探险服Wiki
+site_url: https://wiki.ypshidifu.cn/
+site_author: ypsdf1
+copyright: Copyright &copy; 2024-2026 草原探险服
+
+theme:
+  name: material
+  language: zh
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: green
+      accent: green
+      toggle:
+        icon: material/brightness-7
+        name: 切换到深色模式
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: green
+      accent: green
+      toggle:
+        icon: material/brightness-4
+        name: 切换到浅色模式
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search:
+      lang:
+        - zh
+        - en
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ypsdf1/caoyuanwiki
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - 首页: index.md
+  - 基础入门:
+      - 用户协议: player.md
+      - 注册和登陆: login.md
+      - 指令帮助: plays.md
+  - 游戏功能:
+      - 领地保护: dom.md
+      - 皮肤更新: skin.md
+  - 经济系统:
+      - 充值游戏币: cz.md
+      - 游戏币与转账: money.md
+      - 邀请奖励规则: invite.md
+  - 云背包: beibao.md
+  - 自助兑换游戏币: sdf1.md
+  - 登录系统: sdf1_login.md

@@ -3,3 +3,11 @@ node_modules/
 .DS_Store
 Thumbs.db
 *.psd
+site/
+
+# Docsify 旧文件（已迁移到 MkDocs）
+/_sidebar.md
+/book.json
+/index.html
+/wikis/
+/img/
