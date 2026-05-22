@@ -31,7 +31,7 @@
 您可在你的领地内，使用如下指令：
 ```html
 /dominion expand name=名字  //扩建
-/dominion contract namee=名字  //缩小
+/dominion contract name=名字  //缩小
 
 示例：
 /dominion expand name=example 
