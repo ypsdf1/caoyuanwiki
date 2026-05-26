@@ -1,5 +1,6 @@
 name: Deploy MkDocs to GitHub Pages
 
+# Trigger on push to main or manual dispatch
 on:
   push:
     branches:
