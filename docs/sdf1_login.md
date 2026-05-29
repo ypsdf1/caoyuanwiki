@@ -435,9 +435,9 @@ http-port=443
 | protect | 参数不分顺序 | 区名可以写这里也可以写后面 | 玩家名可以写这里也可以写前面 | 完美的宝宝化 |
 
 示范：
-- `/protect add 末地保护区 players` 添加players玩家到末地保护区
-- `/protect removeitem 主城区 TNT` 从主城删了TNT这个黑名单物品
-- `/protect 筑城区 addwhite zhangsan` 把zhangsan加白到主城区的模式豁免名单。
+- `/protect add 末地保护区 players` 添加players玩家到末地保护区<br>
+- `/protect removeitem 主城区 TNT` 从主城删了TNT这个黑名单物品<br>
+- `/protect 筑城区 addwhite zhangsan` 把zhangsan加白到主城区的模式豁免名单。<br>
 - 所有参数`任意排序`，`区域名字`随便填写，强大的`兜底`会自动识别"宝宝画板"，你可以放心、大胆的乱写
 
 
