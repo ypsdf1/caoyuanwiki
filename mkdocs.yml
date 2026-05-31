@@ -60,7 +60,6 @@ nav:
   - 基础入门:
       - 用户协议: player.md
       - 注册和登陆: login.md
-      - 指令帮助: plays.md
   - 游戏功能:
       - 领地保护: dom.md
       - 皮肤更新: skin.md
