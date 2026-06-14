@@ -28,7 +28,7 @@
 
 
 ### 2.1 下载
-您可以从GitHub和Gitee下载到插件，将其丢入服务器plugin目录，重启服务器即可。
+您可以从GitHub和Gitee、gitcode下载到插件，将其丢入服务器plugin目录，重启服务器即可。
 
 ### 2.2. 配置文件
 
@@ -567,3 +567,4 @@ http-port=443
 ## 4. 下载地址
 - GitHub：[https://github.com/ypsdf1/sdf1_login](https://github.com/ypsdf1/sdf1_login)
 - Gitee：[https://gitee.com/nihaoshidifu/sdf1_login](https://gitee.com/nihaoshidifu/sdf1_login)
+- gitcode: [https://gitcode.com/ypsdf1/Sdf1_login](https://gitcode.com/ypsdf1/Sdf1_login)
