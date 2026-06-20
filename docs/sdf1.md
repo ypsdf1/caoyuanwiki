@@ -30,10 +30,13 @@ sdf1插件是由草原探险服务器定制插件，主要作用是cdk激活兑�
 第六步：等待提示开启监听，输入口令<br>
 第七步：完成，自动发放游戏币
 
-## 可选依赖
-- EssentialsX(经济系统)
-- [CY_beibao(云背包系统)](beibao.md)
-- [sdf1_login(sdf1系列登录系统)](sdf1_login.md)
+## 前置依赖 
+
+| 依赖插件 | 可选/必选 | 作用 |
+| :---: | :---: | :---: |
+| EssentialsX | 可选 | 老牌经济 |
+| [CY_Beibao](beibao.md) | 可选 | 云背包接入 |
+| [Sdf1_login](sdf1_login.md) | 必选 | 债券接入，Web系统接入 |
 
 ## 批量导入方法
 第一步：在插件配置文件目录下，新建一个txt文件，文件名任意，例如`cdk.txt`<br>
@@ -72,6 +75,16 @@ cdk2 2分
 ```
 第三步：文件写好以后，游戏内/控制台执行/import 文件名.txt，进行导入
 
+## 屏蔽后缀
+您可编辑`黑名单.txt`文件，屏蔽危险后缀。
+```txt
+.sh # 一行一个
+.bat # 一行一个
+
+```
+
+文件后缀匹配**黑名单**的，插件导入时，会自动跳过
+
 ### 如果导入错误(如分值错误或其它类型错误)
 导入错误时，您可使用/sdf1 undo撤销导入，将其修正后重新导入即可
 
@@ -79,11 +92,4 @@ cdk2 2分
 - 本插件为免费插件，请勿商业转发
 - 本插件为草原探险服务器定制插件，体验最新版、内测版建议您游玩草原探险服务器或加入我们的[官方群981954292](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=ftGx3Ac2pd8IbWV5WZmoIrVHRXgGUb2a&authKey=DLTKLbiInzZe0pegvDtXbTVXeLJ6TAaPtHd3ol8p5adiljTSzzEp8hHU%2BLA4kBT4&noverify=0&group_code=981954292)获取。
 
-## 下载地址：
-[官方下载](https://pan.ypshidifu.cn/s/n6hG)<br>
-[bbsmc分流](https://bbsmc.net/plugin/sdf1money)
-
-## 插件源码：
-- [github](https://github.com/ypsdf1/sdf1_plugn)
-- [gitee](https://gitee.com/nihaoshidifu/sdf1_plugn)
 
