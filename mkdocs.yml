@@ -67,7 +67,10 @@ nav:
       - 充值游戏币: cz.md
       - 游戏币与转账: money.md
       - 邀请奖励规则: invite.md
-  - 云背包: beibao.md
-  - 自助兑换游戏币: sdf1.md
-  - 登录系统: sdf1_login.md
-  - 快问快答: sdf1_game.md
+  - 自研插件:
+      - sdf1兑换码插件: sdf1.md
+      - 云背包插件: beibao.md
+      - 登录插件: sdf1_login.md
+      - 寻宝游戏插件: sdf1_game.md
+      - 登陆插件配套php用户端: php.md
+      - 登陆插件配套php管理端: phpadmin.md
