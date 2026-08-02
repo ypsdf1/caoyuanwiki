@@ -65,7 +65,7 @@ nav:
       - 皮肤更新: skin.md
   - 经济系统:
       - 充值游戏币: cz.md
-      - 游戏币与转账: money.md
+      #- 游戏币与转账: money.md
       - 邀请奖励规则: invite.md
   - 自研插件:
       - sdf1兑换码插件: sdf1.md
@@ -74,3 +74,5 @@ nav:
       - 寻宝游戏插件: sdf1_game.md
       - 登陆插件配套php用户端: php.md
       - 登陆插件配套php管理端: phpadmin.md
+  - 服务器截图:
+      - 大合照: img.md
