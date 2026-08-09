@@ -19,6 +19,26 @@
 
 请使用左侧目录导航浏览所有文档内容。
 
+## 🔈近期公告
+
+| 日期 | 内容 |
+| :---: | :---: |
+| 2026年8月3日 | 🎮升级服务器版本至26.2 |
+| 2026年6月7日 | 🎮 升级服务器到26.1.2
+| 2026年4月19日 | 🎮升级服务器到1.21.11
+
+## 📄 基本信息
+
+| 类型 | 内容 |
+| :---: | :---: |
+| IP | mc2.ypshidifu.cn |
+| 名字 | 草原探险 |
+| 端口(Java) | 免输入 |
+| 端口(基岩版) | 30679 |
+| 官方群 | [981954292](https://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=ftGx3Ac2pd8IbWV5WZmoIrVHRXgGUb2a&authKey=DLTKLbiInzZe0pegvDtXbTVXeLJ6TAaPtHd3ol8p5adiljTSzzEp8hHU%2BLA4kBT4&noverify=0&group_code=981954292) |
+| 服主: youpaishidifu | 联系方式(QQ): 1764147307 |
+| 服主: DoraStarry  | 联系方式(QQ): 3154684755 |
+
 ---
 
-*如有错误，请您[点击此处提交工单](https://github.com/ypsdf1/caoyuanwiki/issues)，感谢您的支持！*
+*如果您发现本文中存在内容错误，您可[点击此处](https://github.com/ypsdf1/caoyuanwiki/issues?q=is%3Aissue)提交工单反馈*
