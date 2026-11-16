@@ -20,19 +20,55 @@ jobs:
             const issueNumber = context.payload.issue.number;
             const issueAuthor = context.payload.issue.user.login;
             const issueTitle  = context.payload.issue.title;
+            const issueBody   = context.payload.issue.body || '';
 
             console.log(`触发 Issue #${issueNumber}，作者：${issueAuthor}`);
 
-            // 1. 添加"待处理"标签
+            // 0. 确保标签存在（不存在则创建，存在则不动）
+            const ensureLabel = async (name, color, description) => {
+              try {
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name
+                });
+              } catch (e) {
+                if (e.status !== 404) throw e;
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name,
+                  color,
+                  description
+                });
+                console.log(`标签 ${name} 不存在，已自动创建`);
+              }
+            };
+
+            // 1. 判断是否来自申诉工单模板（标题前缀 或 正文特征片段，命中其一即可）
+            const isAppeal =
+              issueTitle.trim().startsWith('[申诉]') ||
+              issueBody.includes('## ⚖️ 被处置信息') ||
+              issueBody.includes('本工单用于对服务器处罚/账号处置提出申诉');
+            console.log(`申诉工单判定：${isAppeal}`);
+
+            // 2. 添加"待处理"标签；申诉工单追加"申诉状"标签
+            await ensureLabel('待处理', '0e8a16', '待处理的工单');
+            const labelsToAdd = ['待处理'];
+            if (isAppeal) {
+              await ensureLabel('申诉状', 'd93f0b', '由申诉工单模板提交的申诉');
+              labelsToAdd.push('申诉状');
+            }
+
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo:  context.repo.repo,
               issue_number: issueNumber,
-              labels: ['待处理']
+              labels: labelsToAdd
             });
-            console.log('标签添加完成');
+            console.log(`标签添加完成：${labelsToAdd.join('、')}`);
 
-            // 2. 自动回复
+            // 3. 自动回复
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo:  context.repo.repo,

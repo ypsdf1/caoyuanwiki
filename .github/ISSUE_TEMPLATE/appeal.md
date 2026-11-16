@@ -2,7 +2,7 @@
 name: 申诉工单
 about: 对服务器的处罚或账号处置（封禁、删号等）提出申诉
 title: "[申诉] "
-labels: 申诉
+labels: 申诉状
 assignees: ''
 ---
 
