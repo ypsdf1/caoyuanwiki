@@ -1,8 +1,10 @@
-name: Auto Reply & Label New Issues
+name: Issue Auto Reply & Labels
 
 on:
   issues:
-    types: [opened]
+    types: [opened, closed]
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
@@ -10,6 +12,7 @@ permissions:
 
 jobs:
   auto-reply:
+    if: github.event_name == 'issues' && github.event.action == 'opened'
     runs-on: ubuntu-latest
     steps:
       - name: Add label and post comment
@@ -83,3 +86,113 @@ jobs:
               ].join('\n')
             });
             console.log('评论发布完成');
+
+  label-on-close:
+    if: github.event_name == 'issues' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 按关单原因贴标
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issueNumber = context.payload.issue.number;
+            const reason = context.payload.issue.state_reason || '';
+            console.log(`Issue #${issueNumber} 关单，state_reason=${reason || '(无)'}`);
+
+            // 关单原因 → 目标标签
+            const labelMap = {
+              not_planned: { name: '已驳回', color: 'd73a4a', description: '不予处理/已驳回的工单' },
+              completed:   { name: '已完成', color: '2ea44f', description: '已完成处理的工单' }
+            };
+            const target = labelMap[reason];
+            if (!target) {
+              console.log('关单原因不是 not_planned/completed，跳过贴标');
+              return;
+            }
+
+            // 确保标签存在（不存在则创建，存在则不动）
+            const ensureLabel = async (name, color, description) => {
+              try {
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name
+                });
+              } catch (e) {
+                if (e.status !== 404) throw e;
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name,
+                  color,
+                  description
+                });
+                console.log(`标签 ${name} 不存在，已自动创建`);
+              }
+            };
+
+            await ensureLabel(target.name, target.color, target.description);
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              labels: [target.name]
+            });
+            console.log(`已贴标：${target.name}`);
+
+  label-on-reply:
+    if: >-
+      github.event_name == 'issue_comment' &&
+      github.event.action == 'created' &&
+      github.event.comment.user.login != 'github-actions[bot]' &&
+      github.event.issue.pull_request == null
+    runs-on: ubuntu-latest
+    steps:
+      - name: 工单作者或运维回复时贴已回复
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issueNumber = context.payload.issue.number;
+            const commenter   = context.payload.comment.user.login;
+            const issueAuthor  = context.payload.issue.user.login;
+            const assoc       = context.payload.comment.author_association || 'NONE';
+
+            const isAuthor = commenter === issueAuthor;
+            const isMaintainer = ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(assoc);
+            console.log(`#${issueNumber} 评论者：${commenter}（关联：${assoc}），工单作者：${issueAuthor}`);
+            if (!isAuthor && !isMaintainer) {
+              console.log('非工单作者、也非仓库运维的评论，跳过贴标');
+              return;
+            }
+
+            // 确保标签存在（不存在则创建，存在则不动）
+            const ensureLabel = async (name, color, description) => {
+              try {
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name
+                });
+              } catch (e) {
+                if (e.status !== 404) throw e;
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name,
+                  color,
+                  description
+                });
+                console.log(`标签 ${name} 不存在，已自动创建`);
+              }
+            };
+
+            await ensureLabel('已回复', '1d76db', '工单作者或运维已回复');
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              labels: ['已回复']
+            });
+            console.log('已贴标：已回复');
