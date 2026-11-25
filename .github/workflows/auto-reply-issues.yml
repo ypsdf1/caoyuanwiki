@@ -2,7 +2,7 @@ name: Issue Auto Reply & Labels
 
 on:
   issues:
-    types: [opened, closed]
+    types: [opened, closed, reopened]
   issue_comment:
     types: [created]
 
@@ -133,6 +133,19 @@ jobs:
             };
 
             await ensureLabel(target.name, target.color, target.description);
+
+            // 先摘掉工单上的全部标签，只保留目标标签（仓库级标签定义不受影响）
+            try {
+              await github.rest.issues.removeAllLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber
+              });
+              console.log('已清空工单原有标签');
+            } catch (e) {
+              console.log(`清空标签失败（可忽略）：${e.message}`);
+            }
+
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -196,3 +209,61 @@ jobs:
               labels: ['已回复']
             });
             console.log('已贴标：已回复');
+
+  label-on-reopen:
+    if: github.event_name == 'issues' && github.event.action == 'reopened'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 重开时摘除终态标签并回到待处理
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issueNumber = context.payload.issue.number;
+            console.log(`Issue #${issueNumber} 被重新打开`);
+
+            // 1. 摘除终态标签（存在才摘）
+            for (const name of ['已驳回', '已完成']) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  name
+                });
+                console.log(`已摘除标签：${name}`);
+              } catch (e) {
+                if (e.status !== 404) throw e;
+              }
+            }
+
+            // 2. 确保标签存在（不存在则创建，存在则不动）
+            const ensureLabel = async (name, color, description) => {
+              try {
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name
+                });
+              } catch (e) {
+                if (e.status !== 404) throw e;
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name,
+                  color,
+                  description
+                });
+                console.log(`标签 ${name} 不存在，已自动创建`);
+              }
+            };
+
+            // 3. 回到"待处理"
+            await ensureLabel('待处理', '0e8a16', '待处理的工单');
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              labels: ['待处理']
+            });
+            console.log('已贴标：待处理');
