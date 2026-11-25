@@ -209,6 +209,12 @@ jobs:
               return;
             }
 
+            // 工单已关闭（关单后补发评论等场景）→ 不贴"已回复"，避免终态标签被覆盖
+            if (context.payload.issue.state !== 'open') {
+              console.log('工单已关闭，跳过贴"已回复"');
+              return;
+            }
+
             // 确保标签存在（不存在则创建，存在则不动）
             const ensureLabel = async (name, color, description) => {
               try {
@@ -274,45 +280,105 @@ jobs:
             const contrastBroken = contrast && (strong || weak);
             // 带问号或"吗"的视为提问，不算确认（如"现在可以了吗？"）
             const question  = /[？?]|吗/.test(commentBody);
-            console.log(`关键词命中：${hit}，否定：${negative}，强报障：${strong}，转折后报障：${contrastBroken}，提问：${question}`);
-            if (!hit || negative || strong || contrastBroken || question) {
-              console.log('未命中撤销关键词/存在否定或报障表达/疑似提问，保持工单开启');
+
+            // 明确的二次确认口令（作者已明确要关单，可直接执行）
+            const confirmPhraseRe = /确认(一下)?(关单|关闭|撤销)/;
+            const notConfirmRe    = /(不|别|未|还没|没|尚未)\s*(要|需要)?\s*确认/;
+            const isConfirm = confirmPhraseRe.test(commentBody) && !notConfirmRe.test(commentBody);
+
+            console.log(`确认口令：${isConfirm}，撤销词：${hit}，否定：${negative}，强报障：${strong}，转折后报障：${contrastBroken}，提问：${question}`);
+
+            // 守卫：存在否定 / 强报障 / 转折后报障 / 疑似提问 → 一律不推进关单
+            if (negative || strong || contrastBroken || question) {
+              console.log('存在否定/报障表达/疑似提问，不推进关单流程');
               return;
             }
 
-            // 1. 机器人回一条确认评论
-            await github.rest.issues.createComment({
+            // 拉取工单当前标签（判断是否已处于待确认状态，避免重复发起二次确认）
+            const issueData = await github.rest.issues.get({
               owner: context.repo.owner,
               repo:  context.repo.repo,
-              issue_number: issueNumber,
-              body: [
-                `🤖 检测到 @${issueAuthor} 在评论中表示问题已解决 / 需要撤销本工单。`,
-                ``,
-                `已按你的意思**自动关闭**本工单，并标记为 **已撤销**，后续不再跟进。`,
-                ``,
-                `---`,
-                `> 若问题仍未解决，或机器人误解了你的意思，直接在本工单下补充回复即可，我们会重新跟进。`
-              ].join('\n')
+              issue_number: issueNumber
             });
+            const hasPending = issueData.data.labels.some(l => l.name === '待确认');
 
-            // 2. 先贴"已撤销"，再关单，让关单任务读到该标签（据此跳过已完成/已驳回）
-            await ensureLabel('已撤销', '6e7781', '用户主动撤销反馈，无需继续跟进');
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issueNumber,
-              labels: ['已撤销']
-            });
+            // 关单动作：先回消息 → 摘待确认 → 贴已撤销 → 关单（让关单任务据此跳过已完成/已驳回）
+            const doClose = async () => {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                issue_number: issueNumber,
+                body: [
+                  `🤖 已收到你的**二次确认**，正在为你关闭本工单并标记为 **已撤销**。`,
+                  ``,
+                  `> 若问题其实没解决，重新打开本工单并补充说明即可，我们会继续跟进。`
+                ].join('\n')
+              });
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  name: '待确认'
+                });
+              } catch (e) {
+                if (e.status !== 404) throw e;
+              }
+              await ensureLabel('已撤销', '6e7781', '用户主动撤销反馈，无需继续跟进');
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['已撤销']
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                state: 'closed',
+                state_reason: 'not_planned'
+              });
+              console.log('已二次确认关单并贴标：已撤销');
+            };
 
-            // 3. 关闭工单
-            await github.rest.issues.update({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issueNumber,
-              state: 'closed',
-              state_reason: 'not_planned'
-            });
-            console.log('已自动关单并贴标：已撤销');
+            // 分支 A：作者已明确"确认关单" → 直接执行关单
+            if (isConfirm) {
+              await doClose();
+              return;
+            }
+
+            // 分支 B：作者说了"解决了/撤销"等 → 发起二次确认（只发一次，避免刷屏）
+            if (hit) {
+              if (hasPending) {
+                console.log('已处于待确认状态，避免重复发起二次确认');
+                return;
+              }
+              await ensureLabel('待确认', 'f9d024', '等待作者二次确认关单');
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['待确认']
+              });
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                issue_number: issueNumber,
+                body: [
+                  `🤖 收到 @${issueAuthor} 的反馈，检测到你想**撤销并关闭**本工单。`,
+                  ``,
+                  `为防止误关，需要你做**二次确认**：`,
+                  `- 确认关单：请回复 **确认关单**`,
+                  `- 尚未解决 / 无需关闭：请继续描述问题，或忽略本条`,
+                  ``
+                ].join('\n')
+              });
+              console.log('已发起二次确认');
+              return;
+            }
+
+            // 未命中任何撤销 / 确认表达 → 保持工单开启
+            console.log('未命中撤销或确认表达，保持工单开启');
 
   label-on-reopen:
     if: github.event_name == 'issues' && github.event.action == 'reopened'
@@ -324,10 +390,19 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const issueNumber = context.payload.issue.number;
+            const issueAuthor = context.payload.issue.user.login;
             console.log(`Issue #${issueNumber} 被重新打开`);
 
-            // 1. 摘除终态标签（存在才摘）
-            for (const name of ['已驳回', '已完成']) {
+            // 1. 拉取当前标签，判断此前是否为机器人"已撤销"关单（误关信号）
+            const issueData = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: issueNumber
+            });
+            const hadCancelled = issueData.data.labels.some(l => l.name === '已撤销');
+
+            // 2. 摘除终态标签 + 已撤销/待确认（存在才摘）
+            for (const name of ['已驳回', '已完成', '已撤销', '待确认']) {
               try {
                 await github.rest.issues.removeLabel({
                   owner: context.repo.owner,
@@ -341,7 +416,7 @@ jobs:
               }
             }
 
-            // 2. 确保标签存在（不存在则创建，存在则不动）
+            // 3. 确保标签存在（不存在则创建，存在则不动）
             const ensureLabel = async (name, color, description) => {
               try {
                 await github.rest.issues.getLabel({
@@ -362,7 +437,7 @@ jobs:
               }
             };
 
-            // 3. 回到"待处理"
+            // 4. 回到"待处理"
             await ensureLabel('待处理', '0e8a16', '待处理的工单');
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
@@ -371,3 +446,19 @@ jobs:
               labels: ['待处理']
             });
             console.log('已贴标：待处理');
+
+            // 5. 若此前是机器人"已撤销"关单 → 大概率误关，致歉
+            if (hadCancelled) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                issue_number: issueNumber,
+                body: [
+                  `🙏 抱歉，@${issueAuthor}！之前可能误关了这个工单，已为你重新打开。`,
+                  ``,
+                  `我们已把它标记为 **待处理**。如果问题其实还没解决，请补充说明具体情况，我们会继续跟进；`,
+                  `若只是误点重开，直接再关一次即可。`
+                ].join('\n')
+              });
+              console.log('已就疑似误关致歉');
+            }
