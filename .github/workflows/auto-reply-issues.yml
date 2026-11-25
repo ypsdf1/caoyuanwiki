@@ -239,6 +239,81 @@ jobs:
             });
             console.log('已贴标：已回复');
 
+            // 作者本人回复命中"已解决/撤销"类关键词 → 机器人回条评论 → 贴"已撤销" → 关单
+            if (!isAuthor) {
+              console.log('非工单作者本人的评论，跳过撤销关键词判定');
+              return;
+            }
+            if (context.payload.issue.state !== 'open') {
+              console.log('工单已关闭，跳过撤销关键词判定');
+              return;
+            }
+
+            const commentBody = context.payload.comment.body || '';
+            // 否定表达优先排除，避免"没解决""无法撤销"被误判为撤销
+            const negativeRe = /(没|未|没有|尚未|还没|仍未|不|无法|不能|别)(有)?\s*(解决|修复|搞定|修好|好|成功|恢复|撤销|取消|撤回)/;
+            // 强报障表达：单独出现即判定"问题仍在"，直接不关
+            const strongBrokenRe = /(还是|依然|仍然|依旧|仍旧|老是|一直|又)\s*(不|没|无法|有)|不行|用不了|不能用|进不去|打不开|掉线|闪退|崩了|报错|出错|还有问题|还是有问题|无法(登录|进入|连接)/;
+            // 弱报障表达：仅在出现转折词时才拦（避免"不卡了"被误伤）
+            const weakBrokenRe = /(卡|卡顿|延迟|掉帧|bug|BUG|问题)/;
+            // 转折词：命中撤销词后又提问题，视为没真正解决，保守不关
+            const contrastRe = /(但是|但|不过|可是|然而|只是|问题是)/;
+            const cancelRes = [
+              /已?解决/,
+              /搞定|搞好了|修好了|修复了|已修复/,
+              /可以了|没问题了|正常了|恢复了|已恢复/,
+              /撤销|取消|撤回/,
+              /不用(处理|管)?了|不需要了|算了|关(了|闭)吧/
+            ];
+            const hit       = cancelRes.some(re => re.test(commentBody));
+            const negative  = negativeRe.test(commentBody);
+            const strong    = strongBrokenRe.test(commentBody);
+            const contrast  = contrastRe.test(commentBody);
+            const weak      = weakBrokenRe.test(commentBody);
+            // 转折词 + 任一报障（强或弱）→ 认为没真正解决
+            const contrastBroken = contrast && (strong || weak);
+            // 带问号或"吗"的视为提问，不算确认（如"现在可以了吗？"）
+            const question  = /[？?]|吗/.test(commentBody);
+            console.log(`关键词命中：${hit}，否定：${negative}，强报障：${strong}，转折后报障：${contrastBroken}，提问：${question}`);
+            if (!hit || negative || strong || contrastBroken || question) {
+              console.log('未命中撤销关键词/存在否定或报障表达/疑似提问，保持工单开启');
+              return;
+            }
+
+            // 1. 机器人回一条确认评论
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: issueNumber,
+              body: [
+                `🤖 检测到 @${issueAuthor} 在评论中表示问题已解决 / 需要撤销本工单。`,
+                ``,
+                `已按你的意思**自动关闭**本工单，并标记为 **已撤销**，后续不再跟进。`,
+                ``,
+                `---`,
+                `> 若问题仍未解决，或机器人误解了你的意思，直接在本工单下补充回复即可，我们会重新跟进。`
+              ].join('\n')
+            });
+
+            // 2. 先贴"已撤销"，再关单，让关单任务读到该标签（据此跳过已完成/已驳回）
+            await ensureLabel('已撤销', '6e7781', '用户主动撤销反馈，无需继续跟进');
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              labels: ['已撤销']
+            });
+
+            // 3. 关闭工单
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              state: 'closed',
+              state_reason: 'not_planned'
+            });
+            console.log('已自动关单并贴标：已撤销');
+
   label-on-reopen:
     if: github.event_name == 'issues' && github.event.action == 'reopened'
     runs-on: ubuntu-latest
