@@ -106,10 +106,6 @@ jobs:
               completed:   { name: '已完成', color: '2ea44f', description: '已完成处理的工单' }
             };
             const target = labelMap[reason];
-            if (!target) {
-              console.log('关单原因不是 not_planned/completed，跳过贴标');
-              return;
-            }
 
             // 确保标签存在（不存在则创建，存在则不动）
             const ensureLabel = async (name, color, description) => {
@@ -132,9 +128,7 @@ jobs:
               }
             };
 
-            await ensureLabel(target.name, target.color, target.description);
-
-            // 先摘掉工单上的全部标签，只保留目标标签（仓库级标签定义不受影响）
+            // 先摘掉工单上的全部标签（仓库级标签定义不受影响）
             try {
               await github.rest.issues.removeAllLabels({
                 owner: context.repo.owner,
@@ -146,6 +140,12 @@ jobs:
               console.log(`清空标签失败（可忽略）：${e.message}`);
             }
 
+            if (!target) {
+              console.log('关单原因不是 not_planned/completed，仅清空标签，不贴新标签');
+              return;
+            }
+
+            await ensureLabel(target.name, target.color, target.description);
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
