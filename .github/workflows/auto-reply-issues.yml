@@ -531,7 +531,7 @@ jobs:
                   `- 确认关单：请回复 **确认关单**`,
                   `- 尚未解决 / 无需关闭：请继续描述问题，或忽略本条`,
                   ``,
-                  `> ⏳ 请在 **15 分钟内**完成二次确认，超时未确认将自动提醒。`,
+                  `> ⏳ 请在 **15 分钟内**完成二次确认，超时未确认工单将**自动关闭**（已撤销），届时若问题未解决请开新单。`,
                   ``
                 ].join('\n') + `\n<PENDING_TS:${pendingTs}>`
               });
@@ -743,12 +743,13 @@ jobs:
   #   3. 若该时间戳距今 ≥ 15 分钟，且工单仍为 open 且仍带"待确认"标签
   #      → 说明 15 分钟内既没关单也没新反馈，工单"卡死"了
   #      → 机器人发一条超时提醒评论（每 15 分钟最多提醒 1 次，避免刷屏）
-  # 原则：宁可多提醒也不错漏；若工单在 15 分钟内已状态变更（摘掉待确认/关单），则不提醒
+  # 原则：15 分钟为硬上限，到期未变更 → 机器人直接关单（已撤销）并提示开新单；
+  #       若工单在 15 分钟内已状态变更（摘掉待确认/关单/重开），则跳过不处理
   timeout-pending:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     steps:
-      - name: 扫描卡在待确认的工单，超时提醒
+      - name: 扫描卡在待确认的工单，超时自动关单（已撤销）
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -826,57 +827,76 @@ jobs:
                 continue;
               }
 
-              // ── 防刷屏：检查最近一条机器人评论是否已是超时提醒（15 分钟窗口内只提醒 1 次）──
-              let lastReminderTs = null;
+              // ── 到期自动关单：发说明评论 → 摘全部标签 → 贴"已撤销" → 关单（not_planned）→ 提示开新单 ──
+              // 15 分钟为硬上限，到点未变更即视为用户放弃本次反馈，机器人代关
               try {
-                const history2 = await github.rest.issues.listComments({
-                  owner: context.repo.owner,
-                  repo:  context.repo.repo,
-                  issue_number: issue.number,
-                  per_page: 100
-                });
-                const comments2 = [...history2.data].reverse();
-                for (const c of comments2) {
-                  if (c.user && (c.user.login === 'github-actions[bot]' || c.user.login === 'github-actions')) {
-                    const body = c.body || '';
-                    // 机器人超时提醒评论的固定首行指纹
-                    if (body.startsWith('⏰ 工单 #') && body.includes('超时提醒')) {
-                      lastReminderTs = c.created_at ? new Date(c.created_at).getTime() : null;
-                      break;
-                    }
-                  }
-                }
-              } catch (e) {
-                // 忽略
-              }
-              if (lastReminderTs && now - lastReminderTs < TIMEOUT_MS) {
-                console.log(`#${issue.number}：15 分钟内已发过超时提醒，跳过（防刷屏）`);
-                continue;
-              }
-
-              // ── 发超时提醒 ─────────────────────────────────────────
-              try {
+                const issueAuthor = live.data.user ? live.data.user.login : '作者';
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo:  context.repo.repo,
                   issue_number: issue.number,
                   body: [
-                    `⏰ **工单 #${issue.number} 超时提醒**`,
+                    `⏰ **工单 #${issue.number} 已超时，自动关闭**`,
                     ``,
-                    `本工单自 ${new Date(lastTs).toISOString()} 起处于"**待确认**"状态，已超过 **15 分钟**未进行状态变更。`,
+                    `本工单自 ${new Date(lastTs).toISOString()} 起处于"**待确认**"状态，超过 **15 分钟**未进行状态变更（既未确认关单、也未补充新反馈）。`,
                     ``,
-                    `请相关运维/作者尽快介入：`,
-                    `- 若需关闭：请回复 **确认关单** 或手动关单`,
-                    `- 若需继续处理：请补充说明或摘除"待确认"标签`,
+                    `为保障工单池流转，已自动将其标记为 **已撤销** 并关闭。`,
                     ``,
-                    `> 本条为 15 分钟定时扫描自动发出的提醒，工单状态变更后将停止提醒。`
+                    `📌 **如果问题仍未解决**：请**重新打开一个新工单**并补充说明具体情况，我们会继续跟进。`,
+                    ``,
+                    `> 本条为 15 分钟定时扫描自动执行，如需继续处理本单可重新打开它（重开后机器人会自动摘除终态标签并回到待处理）。`
                   ].join('\n')
                 });
-                console.log(`#${issue.number}：已发超时提醒（已等待 ${Math.round(elapsed / 60000)} 分钟）`);
+
+                // 摘除全部标签（含"待确认"及其它流程标签），只保留即将贴的"已撤销"
+                try {
+                  await github.rest.issues.removeAllLabels({
+                    owner: context.repo.owner,
+                    repo:  context.repo.repo,
+                    issue_number: issue.number
+                  });
+                } catch (e) {
+                  if (e.status !== 404) throw e;
+                }
+
+                // 确保"已撤销"标签存在（暗红 8b0000），不存在则创建
+                try {
+                  await github.rest.issues.getLabel({
+                    owner: context.repo.owner,
+                    repo:  context.repo.repo,
+                    name: '已撤销'
+                  });
+                } catch (e) {
+                  if (e.status !== 404) throw e;
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo:  context.repo.repo,
+                    name: '已撤销',
+                    color: '8b0000',
+                    description: '用户主动撤销反馈，无需继续跟进'
+                  });
+                  console.log(`#${issue.number}：标签「已撤销」不存在，已自动创建`);
+                }
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  issue_number: issue.number,
+                  labels: ['已撤销']
+                });
+
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  issue_number: issue.number,
+                  state: 'closed',
+                  state_reason: 'not_planned'
+                });
+
+                console.log(`#${issue.number}：已超时自动关单并贴标「已撤销」（已等待 ${Math.round(elapsed / 60000)} 分钟）`);
                 remindedCount++;
               } catch (e) {
-                console.log(`#${issue.number}：发超时提醒失败（忽略）：${e.message}`);
+                console.log(`#${issue.number}：超时自动关单失败（忽略）：${e.message}`);
               }
             }
 
-            console.log(`超时扫描完成，共提醒 ${remindedCount} 个工单`);
+            console.log(`超时扫描完成，共自动关单 ${remindedCount} 个工单`);
