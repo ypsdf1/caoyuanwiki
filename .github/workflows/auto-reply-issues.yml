@@ -518,8 +518,10 @@ jobs:
                 issue_number: issueNumber,
                 labels: ['待确认']
               });
-              // ★ 在评论里嵌入隐藏时间戳标记（毫秒数），供 15 分钟定时 job 解析超时
-              const pendingTs = Date.now().toString();
+              // ★ 在评论里嵌入隐藏标记（毫秒时间戳:意图），供 15 分钟定时 job 解析超时
+              //   意图 resolved=待完结(已完成绿标) / withdrawn=待撤销(已撤销暗红标)
+              const pendingIntent = resolveHit ? 'resolved' : 'withdrawn';
+              const pendingTs = `${Date.now()}:${pendingIntent}`;
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo:  context.repo.repo,
@@ -531,7 +533,7 @@ jobs:
                   `- 确认关单：请回复 **确认关单**`,
                   `- 尚未解决 / 无需关闭：请继续描述问题，或忽略本条`,
                   ``,
-                  `> ⏳ 请在 **15 分钟内**完成二次确认，超时未确认工单将**自动关闭**（已撤销），届时若问题未解决请开新单。`,
+                  `> ⏳ 请在 **15 分钟内**完成二次确认，超时未确认工单将**自动关闭**，届时若问题未解决请开新单。`,
                   ``
                 ].join('\n') + `\n<PENDING_TS:${pendingTs}>`
               });
@@ -735,16 +737,17 @@ jobs:
 
             console.log(`兜底扫描完成，共清理 ${cleanedCount} 个工单的残留标签`);
 
-  # ── 15 分钟超时提醒：扫描卡在"待确认"的工单，超时未变更则提醒 ──────────
+  # ── 15 分钟超时自动关单：扫描卡在"待确认"的工单，到期未变更则按意图关单 ──
   # 触发条件：每 15 分钟 cron
   # 逻辑：
   #   1. 拉取所有带"待确认"标签的 open issue（翻页上限 5 页/500 条）
-  #   2. 对每个 issue，拉取最近 100 条评论，由近及远找第一个 <PENDING_TS:ISO8601> 时间戳
+  #   2. 对每个 issue，拉取最近 100 条评论，由近及远找第一个 <PENDING_TS:毫秒:意图> 标记
+  #      意图 resolved=待完结(已完成绿标) / withdrawn=待撤销(已撤销暗红标)
   #   3. 若该时间戳距今 ≥ 15 分钟，且工单仍为 open 且仍带"待确认"标签
   #      → 说明 15 分钟内既没关单也没新反馈，工单"卡死"了
-  #      → 机器人发一条超时提醒评论（每 15 分钟最多提醒 1 次，避免刷屏）
-  # 原则：15 分钟为硬上限，到期未变更 → 机器人直接关单（已撤销）并提示开新单；
-  #       若工单在 15 分钟内已状态变更（摘掉待确认/关单/重开），则跳过不处理
+  #      → 机器人按意图自动关单（已完成/已撤销）并提示开新单
+  # 原则：15 分钟为硬上限，到期未变更 → 机器人直接关单（按意图选终态标签）并提示开新单；
+  #       若工单在 15 分钟内已状态变更（摘掉待确认/关单/重开/新反馈），则跳过不处理
   timeout-pending:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
@@ -792,8 +795,10 @@ jobs:
                 continue;
               }
 
-              // 拉取最近 100 条评论，由近及远找 <PENDING_TS:...> 标记
+              // 拉取最近 100 条评论，由近及远找 <PENDING_TS:毫秒:意图> 标记
+              // 意图 resolved=待完结 / withdrawn=待撤销（旧格式只有毫秒，默认 withdrawn）
               let lastTs = null;
+              let lastIntent = 'withdrawn';
               try {
                 const history = await github.rest.issues.listComments({
                   owner: context.repo.owner,
@@ -805,9 +810,11 @@ jobs:
                 const comments = [...history.data].reverse();
                 for (const c of comments) {
                   const body = c.body || '';
-                  const m = body.match(/<PENDING_TS:(\d+)>/);
+                  // 新格式 <PENDING_TS:123456:resolved> 或旧格式 <PENDING_TS:123456>
+                  const m = body.match(/<PENDING_TS:(\d+)(?::(\w+))?>/);
                   if (m) {
                     lastTs = parseInt(m[1], 10);
+                    lastIntent = m[2] || 'withdrawn';
                     break;
                   }
                 }
@@ -815,7 +822,7 @@ jobs:
                 console.log(`#${issue.number}：拉取评论历史失败（忽略）：${e.message}`);
               }
 
-              // 找不到时间戳标记（旧数据）→ 不提醒，交给兜底 job 处理
+              // 找不到时间戳标记（旧数据）→ 跳过，交给兜底 job 处理
               if (lastTs === null) {
                 console.log(`#${issue.number}：未找到 <PENDING_TS:*> 标记，跳过`);
                 continue;
@@ -827,10 +834,18 @@ jobs:
                 continue;
               }
 
-              // ── 到期自动关单：发说明评论 → 摘全部标签 → 贴"已撤销" → 关单（not_planned）→ 提示开新单 ──
+              // ── 按意图选终态标签 ─────────────────────────────────────
+              // resolved  → 已完成（绿色 2ea44f）+ state_reason=completed
+              // withdrawn → 已撤销（暗红 8b0000）+ state_reason=not_planned
+              const finalLabel = lastIntent === 'resolved'
+                ? { name: '已完成', color: '2ea44f', description: '已完成处理的工单' }
+                : { name: '已撤销', color: '8b0000', description: '用户主动撤销反馈，无需继续跟进' };
+              const finalReason = lastIntent === 'resolved' ? 'completed' : 'not_planned';
+              const issueAuthor = live.data.user ? live.data.user.login : '作者';
+
+              // ── 到期自动关单：发说明评论 → 摘全部标签 → 贴终态标签 → 关单 → 提示开新单 ──
               // 15 分钟为硬上限，到点未变更即视为用户放弃本次反馈，机器人代关
               try {
-                const issueAuthor = live.data.user ? live.data.user.login : '作者';
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo:  context.repo.repo,
@@ -840,15 +855,15 @@ jobs:
                     ``,
                     `本工单自 ${new Date(lastTs).toISOString()} 起处于"**待确认**"状态，超过 **15 分钟**未进行状态变更（既未确认关单、也未补充新反馈）。`,
                     ``,
-                    `为保障工单池流转，已自动将其标记为 **已撤销** 并关闭。`,
+                    `为保障工单池流转，已自动将其标记为 **${finalLabel.name}** 并关闭。`,
                     ``,
-                    `📌 **如果问题仍未解决**：请**重新打开一个新工单**并补充说明具体情况，我们会继续跟进。`,
+                    `📌 **如果问题仍未解决**：请**重新提交一个新工单**并补充说明具体情况，我们会继续跟进。`,
                     ``,
                     `> 本条为 15 分钟定时扫描自动执行，如需继续处理本单可重新打开它（重开后机器人会自动摘除终态标签并回到待处理）。`
                   ].join('\n')
                 });
 
-                // 摘除全部标签（含"待确认"及其它流程标签），只保留即将贴的"已撤销"
+                // 摘除全部标签（含"待确认"及其它流程标签），只保留即将贴的终态标签
                 try {
                   await github.rest.issues.removeAllLabels({
                     owner: context.repo.owner,
@@ -859,29 +874,29 @@ jobs:
                   if (e.status !== 404) throw e;
                 }
 
-                // 确保"已撤销"标签存在（暗红 8b0000），不存在则创建
+                // 确保终态标签存在，不存在则创建
                 try {
                   await github.rest.issues.getLabel({
                     owner: context.repo.owner,
                     repo:  context.repo.repo,
-                    name: '已撤销'
+                    name: finalLabel.name
                   });
                 } catch (e) {
                   if (e.status !== 404) throw e;
                   await github.rest.issues.createLabel({
                     owner: context.repo.owner,
                     repo:  context.repo.repo,
-                    name: '已撤销',
-                    color: '8b0000',
-                    description: '用户主动撤销反馈，无需继续跟进'
+                    name: finalLabel.name,
+                    color: finalLabel.color,
+                    description: finalLabel.description
                   });
-                  console.log(`#${issue.number}：标签「已撤销」不存在，已自动创建`);
+                  console.log(`#${issue.number}：标签「${finalLabel.name}」不存在，已自动创建`);
                 }
                 await github.rest.issues.addLabels({
                   owner: context.repo.owner,
                   repo:  context.repo.repo,
                   issue_number: issue.number,
-                  labels: ['已撤销']
+                  labels: [finalLabel.name]
                 });
 
                 await github.rest.issues.update({
@@ -889,10 +904,10 @@ jobs:
                   repo:  context.repo.repo,
                   issue_number: issue.number,
                   state: 'closed',
-                  state_reason: 'not_planned'
+                  state_reason: finalReason
                 });
 
-                console.log(`#${issue.number}：已超时自动关单并贴标「已撤销」（已等待 ${Math.round(elapsed / 60000)} 分钟）`);
+                console.log(`#${issue.number}：已超时自动关单并贴标「${finalLabel.name}」（意图=${lastIntent}，已等待 ${Math.round(elapsed / 60000)} 分钟）`);
                 remindedCount++;
               } catch (e) {
                 console.log(`#${issue.number}：超时自动关单失败（忽略）：${e.message}`);
