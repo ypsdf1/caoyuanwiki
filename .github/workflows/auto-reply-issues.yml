@@ -203,7 +203,7 @@ jobs:
       github.event.issue.pull_request == null
     runs-on: ubuntu-latest
     steps:
-      - name: 工单作者或运维回复时贴已回复
+      - name: 任何用户回复时贴已回复，待确认工单同步摘标
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -216,16 +216,19 @@ jobs:
             const isAuthor = commenter === issueAuthor;
             const isMaintainer = ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(assoc);
             console.log(`#${issueNumber} 评论者：${commenter}（关联：${assoc}），工单作者：${issueAuthor}`);
-            if (!isAuthor && !isMaintainer) {
-              console.log('非工单作者、也非仓库运维的评论，跳过贴标');
-              return;
-            }
 
             // 工单已关闭（关单后补发评论等场景）→ 不贴"已回复"，避免终态标签被覆盖
             if (context.payload.issue.state !== 'open') {
               console.log('工单已关闭，跳过贴"已回复"');
               return;
             }
+
+            // 拉取工单最新标签（payload 快照可能滞后，摘标前以实时为准）
+            const preCheckIssue = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: issueNumber
+            });
 
             // 确保标签存在（不存在则创建，存在则不动）
             const ensureLabel = async (name, color, description) => {
@@ -248,7 +251,9 @@ jobs:
               }
             };
 
-            await ensureLabel('已回复', '1d76db', '工单作者或运维已回复');
+            // 任何用户（不看身份）的回复：贴"已回复"；
+            // 若工单正卡在"待确认"，同步摘除（工单不再永久停留待确认，交由人工/运维接管）
+            await ensureLabel('已回复', '1d76db', '工单已收到回复');
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -256,6 +261,19 @@ jobs:
               labels: ['已回复']
             });
             console.log('已贴标：已回复');
+            if (preCheckIssue.data.labels.some(l => l.name === '待确认')) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  issue_number: issueNumber,
+                  name: '待确认'
+                });
+                console.log('工单原处于待确认状态，收到新回复后已摘除"待确认"');
+              } catch (e) {
+                if (e.status !== 404) throw e;
+              }
+            }
 
             // 作者本人回复命中"已解决/撤销"类关键词 → 机器人回条评论 → 贴"已撤销" → 关单
             if (!isAuthor) {
@@ -268,6 +286,19 @@ jobs:
             }
 
             const commentBody = context.payload.comment.body || '';
+
+            // 明确的二次确认口令（作者已明确要关单，可直接执行）
+            const confirmPhraseRe = /确认(一下)?(关单|关闭|撤销)/;
+            const notConfirmRe    = /(不|别|未|还没|没|尚未)\s*(要|需要)?\s*确认/;
+            const isConfirm = confirmPhraseRe.test(commentBody) && !notConfirmRe.test(commentBody);
+
+            // 工单原处于待确认状态（非确认评论已在上面摘标）→ 仅带确认口令才继续关单流程
+            const hasPending = preCheckIssue.data.labels.some(l => l.name === '待确认');
+            if (hasPending && !isConfirm) {
+              console.log('工单原处于待确认状态且当前评论未带确认口令，跳过关单判定');
+              return;
+            }
+
             // 否定表达优先排除，避免"没解决""无法撤销"被误判为撤销
             const negativeRe = /(没|未|没有|尚未|还没|仍未|不|无法|不能|别)(有)?\s*(解决|修复|搞定|修好|好|成功|恢复|撤销|取消|撤回)/;
             // 强报障表达：单独出现即判定"问题仍在"，直接不关
@@ -299,11 +330,6 @@ jobs:
             // 带问号或"吗"的视为提问，不算确认（如"现在可以了吗？"）
             const question  = /[？?]|吗/.test(commentBody);
 
-            // 明确的二次确认口令（作者已明确要关单，可直接执行）
-            const confirmPhraseRe = /确认(一下)?(关单|关闭|撤销)/;
-            const notConfirmRe    = /(不|别|未|还没|没|尚未)\s*(要|需要)?\s*确认/;
-            const isConfirm = confirmPhraseRe.test(commentBody) && !notConfirmRe.test(commentBody);
-
             console.log(`确认口令：${isConfirm}，撤销词：${hit}，否定：${negative}，强报障：${strong}，转折后报障：${contrastBroken}，提问：${question}`);
 
             // 守卫：存在否定 / 强报障 / 转折后报障 / 疑似提问 → 一律不推进关单
@@ -312,13 +338,27 @@ jobs:
               return;
             }
 
-            // 拉取工单当前标签（判断是否已处于待确认状态，避免重复发起二次确认）
+            // 拉取工单实时标签，校验当前是否仍处于待确认（分支 B 防重复发二次确认用）
             const issueData = await github.rest.issues.get({
               owner: context.repo.owner,
               repo:  context.repo.repo,
               issue_number: issueNumber
             });
-            const hasPending = issueData.data.labels.some(l => l.name === '待确认');
+            const isPendingNow = issueData.data.labels.some(l => l.name === '待确认');
+
+            // 工单原处于待确认状态且当前评论未带明确确认口令 → 跳过（保持人工跟进）
+            // 避免作者此时再说"解决了/算了"触发"回扫历史"重复拉二次确认
+            if (hasPending && !isConfirm) {
+              console.log('工单原处于待确认状态且当前评论未带确认口令，跳过');
+              return;
+            }
+
+            // 非明确关单语义（既非"确认关单"口令、也未命中解决/撤回词）→ 跳过
+            // 原则：宁可少关 1 个也不错关，未识别的意图交给人工跟进
+            if (!isConfirm && !hit) {
+              console.log('未识别出明确关单语义，不自动关单（保持人工跟进）');
+              return;
+            }
 
             // 语义判定（沿用守卫：否定 / 报障 / 提问的评论一律不认）
             const intentOf = (body) => {
@@ -332,7 +372,8 @@ jobs:
             };
 
             // 判定关单语义：当前评论命中则直接用；否则（如只回了"确认关单"）
-            // 回扫工单历史评论（由近及远）找作者的最早意图，查不到默认"撤回"
+            // 回扫工单历史评论（由近及远）找作者最早一次明确的意图；
+            // 若仍查不到 → 跳过不关（原则：语义不明确则宁可少关 1 个也不错关）
             let intent = intentOf(commentBody);
             if (!intent) {
               try {
@@ -354,7 +395,10 @@ jobs:
                 console.log('拉取评论历史失败（忽略）：' + e.message);
               }
             }
-            intent = intent || 'withdrawn';
+            if (!intent) {
+              console.log('历史中未识别出明确的解决/撤回语义，不自动关单（保持人工跟进）');
+              return;
+            }
             const finalLabel = intent === 'resolved'
               ? { name: '已完成', color: '2ea44f', description: '已完成处理的工单' }
               : { name: '已撤销', color: '8b0000', description: '用户主动撤销反馈，无需继续跟进' };
@@ -433,8 +477,8 @@ jobs:
 
             // 分支 B：作者说了"解决了/撤销"等 → 发起二次确认（只发一次，避免刷屏）
             if (hit) {
-              if (hasPending) {
-                console.log('已处于待确认状态，避免重复发起二次确认');
+              if (isPendingNow) {
+                console.log('工单仍处于待确认状态，避免重复发起二次确认');
                 return;
               }
               await ensureLabel('待确认', 'f9d024', '等待作者二次确认关单');
