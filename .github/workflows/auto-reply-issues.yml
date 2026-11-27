@@ -429,8 +429,9 @@ jobs:
               }
             };
 
-            // 关单动作：先回消息 → 摘待确认 → 贴对应终态标签 → 关单（state_reason 与标签匹配，
-            // 关单任务会据此保留"已撤销"或按常规重贴"已完成"）
+            // 关单动作：先回消息 → 摘全部标签 → 贴对应终态标签 → 关单
+            // （state_reason 与标签匹配，关单任务 label-on-close 会复核：
+            //  驳回→已驳回 / 完结→已完成 / 已撤销→保留已撤销，终态标签保持一致）
             const doClose = async () => {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
@@ -442,13 +443,14 @@ jobs:
                   `> 若有误会，重新打开本工单并补充说明即可，我们会继续跟进。`
                 ].join('\n')
               });
+              // ★ 摘掉全部标签（含"待确认"及其它流程标签），只保留即将贴的对应终态标签
               try {
-                await github.rest.issues.removeLabel({
+                await github.rest.issues.removeAllLabels({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  issue_number: issueNumber,
-                  name: '待确认'
+                  issue_number: issueNumber
                 });
+                console.log('已摘除工单全部标签');
               } catch (e) {
                 if (e.status !== 404) throw e;
               }
