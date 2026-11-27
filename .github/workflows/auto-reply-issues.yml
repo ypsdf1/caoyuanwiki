@@ -225,12 +225,23 @@ jobs:
               return;
             }
 
-            // 拉取工单最新标签（payload 快照可能滞后，摘标前以实时为准）
+            // 拉取工单最新状态（payload 快照可能滞后，摘标前以实时为准）
             const preCheckIssue = await github.rest.issues.get({
               owner: context.repo.owner,
               repo:  context.repo.repo,
               issue_number: issueNumber
             });
+
+            // ★ 实时状态复核：payload 快照是事件投递时捕获的，若此刻工单刚被
+            //   手动/机器人关单（state=closed 或带终态标签），必须跳过，否则会
+            //   把"已回复"重新贴到已关单上，造成"已驳回 + 已回复"终态标签被覆盖
+            const liveState   = preCheckIssue.data.state;
+            const liveLabels  = (preCheckIssue.data.labels || []).map(l => l.name);
+            const TERMINAL_SET = new Set(['已完成', '已驳回', '已撤销']);
+            if (liveState !== 'open' || liveLabels.some(n => TERMINAL_SET.has(n))) {
+              console.log(`工单实时状态=${liveState}，标签=[${liveLabels.join(',')}]，已关闭或带终态标签，跳过贴"已回复"`);
+              return;
+            }
 
             // 确保标签存在（不存在则创建，存在则不动）
             const ensureLabel = async (name, color, description) => {
