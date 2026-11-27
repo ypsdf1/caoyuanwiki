@@ -751,7 +751,7 @@ jobs:
   # 原则：15 分钟为硬上限，到期未变更 → 机器人直接关单（按意图选终态标签）并提示开新单；
   #       若工单在 15 分钟内已状态变更（摘掉待确认/关单/重开/新反馈），则跳过不处理
   timeout-pending:
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' || github.event_name == 'issues' || github.event_name == 'issue_comment'
     runs-on: ubuntu-latest
     steps:
       - name: 扫描卡在待确认的工单，超时自动关单（已撤销）
