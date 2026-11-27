@@ -7,6 +7,7 @@ on:
     types: [created]
   schedule:
     - cron: '0 0 * * *'  # 每日 UTC 0:00（北京 08:00）兜底扫描
+    - cron: '*/15 * * * *'  # 每 15 分钟扫描卡在"待确认"的工单，超时提醒
 
 permissions:
   contents: read
@@ -283,6 +284,20 @@ jobs:
                   name: '待确认'
                 });
                 console.log('工单原处于待确认状态，收到新回复后已摘除"待确认"');
+                // ★ 机器人回评论：告知谁提了新反馈，本工单暂不关单，继续处理
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  issue_number: issueNumber,
+                  body: [
+                    `📢 检测到 @${commenter} 提了新的反馈，本工单**暂不关单**，继续处理中。`,
+                    ``,
+                    `其他人可以继续在工单下面留言反馈，补充问题或说明。`,
+                    ``,
+                    `> ⏳ 工单将保持开启状态，若需关闭请等运维处理完毕。`
+                  ].join('\n')
+                });
+                console.log('已发"暂不关单"提醒评论');
               } catch (e) {
                 if (e.status !== 404) throw e;
               }
@@ -503,6 +518,8 @@ jobs:
                 issue_number: issueNumber,
                 labels: ['待确认']
               });
+              // ★ 在评论里嵌入隐藏时间戳标记（毫秒数），供 15 分钟定时 job 解析超时
+              const pendingTs = Date.now().toString();
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo:  context.repo.repo,
@@ -513,8 +530,10 @@ jobs:
                   `为防止误关，需要你做**二次确认**：`,
                   `- 确认关单：请回复 **确认关单**`,
                   `- 尚未解决 / 无需关闭：请继续描述问题，或忽略本条`,
+                  ``,
+                  `> ⏳ 请在 **15 分钟内**完成二次确认，超时未确认将自动提醒。`,
                   ``
-                ].join('\n')
+                ].join('\n') + `\n<PENDING_TS:${pendingTs}>`
               });
               console.log('已发起二次确认');
               return;
@@ -715,3 +734,149 @@ jobs:
             }
 
             console.log(`兜底扫描完成，共清理 ${cleanedCount} 个工单的残留标签`);
+
+  # ── 15 分钟超时提醒：扫描卡在"待确认"的工单，超时未变更则提醒 ──────────
+  # 触发条件：每 15 分钟 cron
+  # 逻辑：
+  #   1. 拉取所有带"待确认"标签的 open issue（翻页上限 5 页/500 条）
+  #   2. 对每个 issue，拉取最近 100 条评论，由近及远找第一个 <PENDING_TS:ISO8601> 时间戳
+  #   3. 若该时间戳距今 ≥ 15 分钟，且工单仍为 open 且仍带"待确认"标签
+  #      → 说明 15 分钟内既没关单也没新反馈，工单"卡死"了
+  #      → 机器人发一条超时提醒评论（每 15 分钟最多提醒 1 次，避免刷屏）
+  # 原则：宁可多提醒也不错漏；若工单在 15 分钟内已状态变更（摘掉待确认/关单），则不提醒
+  timeout-pending:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 扫描卡在待确认的工单，超时提醒
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const TIMEOUT_MS = 15 * 60 * 1000; // 15 分钟
+            const now = Date.now();
+            console.log(`超时扫描触发：${github.event_name}，阈值 ${TIMEOUT_MS / 60000} 分钟`);
+
+            // ── 拉取所有带"待确认"标签的 open issue（翻页上限 5 页/500 条）──
+            const allPending = [];
+            let page = 1;
+            const maxPages = 5;
+            while (page <= maxPages) {
+              const res = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                state: 'open',
+                labels: '待确认',
+                per_page: 100,
+                page
+              });
+              allPending.push(...res.data);
+              if (res.data.length < 100) break;
+              page++;
+            }
+            console.log(`已拉取 ${allPending.length} 个带"待确认"标签的 open 工单（${page} 页）`);
+
+            // ── 逐个检查超时 ─────────────────────────────────────────
+            let remindedCount = 0;
+            for (const issue of allPending) {
+              // 实时复核：标签可能被其它 job 在并发中摘掉
+              const live = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                issue_number: issue.number
+              });
+              const labels = (live.data.labels || []).map(l => l.name);
+              if (live.data.state !== 'open' || !labels.includes('待确认')) {
+                console.log(`#${issue.number}：工单已变更（state=${live.data.state}，标签=[${labels.join(',')}]），跳过`);
+                continue;
+              }
+
+              // 拉取最近 100 条评论，由近及远找 <PENDING_TS:...> 标记
+              let lastTs = null;
+              try {
+                const history = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  issue_number: issue.number,
+                  per_page: 100
+                });
+                // history.data 按时间正序（从旧到新），reverse 后由近及远
+                const comments = [...history.data].reverse();
+                for (const c of comments) {
+                  const body = c.body || '';
+                  const m = body.match(/<PENDING_TS:(\d+)>/);
+                  if (m) {
+                    lastTs = parseInt(m[1], 10);
+                    break;
+                  }
+                }
+              } catch (e) {
+                console.log(`#${issue.number}：拉取评论历史失败（忽略）：${e.message}`);
+              }
+
+              // 找不到时间戳标记（旧数据）→ 不提醒，交给兜底 job 处理
+              if (lastTs === null) {
+                console.log(`#${issue.number}：未找到 <PENDING_TS:*> 标记，跳过`);
+                continue;
+              }
+
+              const elapsed = now - lastTs;
+              if (elapsed < TIMEOUT_MS) {
+                console.log(`#${issue.number}：待确认仅 ${(elapsed / 60000).toFixed(1)} 分钟，未到 15 分钟阈值，跳过`);
+                continue;
+              }
+
+              // ── 防刷屏：检查最近一条机器人评论是否已是超时提醒（15 分钟窗口内只提醒 1 次）──
+              let lastReminderTs = null;
+              try {
+                const history2 = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  issue_number: issue.number,
+                  per_page: 100
+                });
+                const comments2 = [...history2.data].reverse();
+                for (const c of comments2) {
+                  if (c.user && (c.user.login === 'github-actions[bot]' || c.user.login === 'github-actions')) {
+                    const body = c.body || '';
+                    // 机器人超时提醒评论的固定首行指纹
+                    if (body.startsWith('⏰ 工单 #') && body.includes('超时提醒')) {
+                      lastReminderTs = c.created_at ? new Date(c.created_at).getTime() : null;
+                      break;
+                    }
+                  }
+                }
+              } catch (e) {
+                // 忽略
+              }
+              if (lastReminderTs && now - lastReminderTs < TIMEOUT_MS) {
+                console.log(`#${issue.number}：15 分钟内已发过超时提醒，跳过（防刷屏）`);
+                continue;
+              }
+
+              // ── 发超时提醒 ─────────────────────────────────────────
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  issue_number: issue.number,
+                  body: [
+                    `⏰ **工单 #${issue.number} 超时提醒**`,
+                    ``,
+                    `本工单自 ${new Date(lastTs).toISOString()} 起处于"**待确认**"状态，已超过 **15 分钟**未进行状态变更。`,
+                    ``,
+                    `请相关运维/作者尽快介入：`,
+                    `- 若需关闭：请回复 **确认关单** 或手动关单`,
+                    `- 若需继续处理：请补充说明或摘除"待确认"标签`,
+                    ``,
+                    `> 本条为 15 分钟定时扫描自动发出的提醒，工单状态变更后将停止提醒。`
+                  ].join('\n')
+                });
+                console.log(`#${issue.number}：已发超时提醒（已等待 ${Math.round(elapsed / 60000)} 分钟）`);
+                remindedCount++;
+              } catch (e) {
+                console.log(`#${issue.number}：发超时提醒失败（忽略）：${e.message}`);
+              }
+            }
+
+            console.log(`超时扫描完成，共提醒 ${remindedCount} 个工单`);
