@@ -518,7 +518,8 @@ jobs:
                 issue_number: issueNumber,
                 labels: ['待确认']
               });
-              // ★ 在评论里嵌入隐藏标记（毫秒时间戳:意图），供 15 分钟定时 job 解析超时
+              // ★ 在评论里嵌入 HTML 注释标记（毫秒时间戳:意图），前端不渲染，
+              //   但 listComments API 返回的原始 body 里保留，供 15 分钟定时 job 解析
               //   意图 resolved=待完结(已完成绿标) / withdrawn=待撤销(已撤销暗红标)
               const pendingIntent = resolveHit ? 'resolved' : 'withdrawn';
               const pendingTs = `${Date.now()}:${pendingIntent}`;
@@ -534,8 +535,9 @@ jobs:
                   `- 尚未解决 / 无需关闭：请继续描述问题，或忽略本条`,
                   ``,
                   `> ⏳ 请在 **15 分钟内**完成二次确认，超时未确认工单将**自动关闭**，届时若问题未解决请开新单。`,
-                  ``
-                ].join('\n') + `\n<PENDING_TS:${pendingTs}>`
+                  ``,
+                  `<!-- PENDING_TS:${pendingTs} -->`
+                ].join('\n')
               });
               console.log('已发起二次确认');
               return;
@@ -810,8 +812,8 @@ jobs:
                 const comments = [...history.data].reverse();
                 for (const c of comments) {
                   const body = c.body || '';
-                  // 新格式 <PENDING_TS:123456:resolved> 或旧格式 <PENDING_TS:123456>
-                  const m = body.match(/<PENDING_TS:(\d+)(?::(\w+))?>/);
+                  // 匹配 HTML 注释格式 <!-- PENDING_TS:123456:resolved --> 或旧格式 <PENDING_TS:123456>
+                  const m = body.match(/PENDING_TS:(\d+)(?::(\w+))?/);
                   if (m) {
                     lastTs = parseInt(m[1], 10);
                     lastIntent = m[2] || 'withdrawn';
@@ -824,7 +826,7 @@ jobs:
 
               // 找不到时间戳标记（旧数据）→ 跳过，交给兜底 job 处理
               if (lastTs === null) {
-                console.log(`#${issue.number}：未找到 <PENDING_TS:*> 标记，跳过`);
+                console.log(`#${issue.number}：未找到 PENDING_TS 标记，跳过`);
                 continue;
               }
 
