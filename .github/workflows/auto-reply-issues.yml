@@ -5,6 +5,8 @@ on:
     types: [opened, closed, reopened]
   issue_comment:
     types: [created]
+  schedule:
+    - cron: '0 0 * * *'  # 每日 UTC 0:00（北京 08:00）兜底扫描
 
 permissions:
   contents: read
@@ -592,3 +594,113 @@ jobs:
               });
               console.log('已就疑似误关致歉');
             }
+
+  # ── 兜底机制：扫描所有已关闭工单，摘除终态标签以外的残留标签 ──────────
+  # 触发条件：
+  #   1. 每次 issues/issue_comment 事件触发时顺带跑（最稳，覆盖手动关单漏标场景）
+  #   2. 每日定时兜底（UTC 0:00 / 北京 08:00）
+  # 逻辑：
+  #   拉取所有 state=closed 的 issue（最多 100 条/页，自动翻页）
+  #   对每个 issue，若其标签中不含任何终态标签（已完成/已驳回/已撤销），
+  #   且存在非终态标签 → 摘除全部标签（保留终态标签，清除残留）
+  #   若已有终态标签，但还有其它非终态标签 → 摘除那些非终态标签
+  # 原则：宁可多摘也不错摘；终态标签定义固定为 已完成/已驳回/已撤销
+  cleanup-closed:
+    if: github.event_name == 'issues' || github.event_name == 'issue_comment' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 兜底扫描并清理残留标签
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // ── 常量定义 ──────────────────────────────────────────────
+            const TERMINAL_LABELS = new Set(['已完成', '已驳回', '已撤销']);
+
+            console.log(`兜底扫描触发来源：${github.event_name}`);
+
+            // ── 拉取所有已关闭 issue（自动翻页，最多取 500 条防 API 超限）──
+            const allClosed = [];
+            let page = 1;
+            const maxPages = 5; // 500 条上限，足够覆盖绝大多数仓库
+            while (page <= maxPages) {
+              const res = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                state: 'closed',
+                per_page: 100,
+                page
+              });
+              allClosed.push(...res.data);
+              if (res.data.length < 100) break;
+              page++;
+            }
+            console.log(`已拉取 ${allClosed.length} 条已关闭工单（${page} 页）`);
+
+            // ── 逐个检查并清理 ─────────────────────────────────────────
+            let cleanedCount = 0;
+            for (const issue of allClosed) {
+              const labels = (issue.labels || []).map(l => typeof l === 'string' ? l : l.name);
+              if (labels.length === 0) continue;
+
+              // 该 issue 上有哪些终态标签
+              const terminalPresent = labels.filter(n => TERMINAL_LABELS.has(n));
+              // 非终态的残留标签
+              const residual = labels.filter(n => !TERMINAL_LABELS.has(n));
+
+              if (residual.length === 0) continue; // 无残留，跳过
+
+              // 摘除残留标签
+              for (const name of residual) {
+                try {
+                  await github.rest.issues.removeLabel({
+                    owner: context.repo.owner,
+                    repo:  context.repo.repo,
+                    issue_number: issue.number,
+                    name
+                  });
+                  console.log(`#${issue.number}：摘除残留标签「${name}」`);
+                } catch (e) {
+                  if (e.status !== 404) {
+                    console.log(`#${issue.number}：摘除「${name}」失败（忽略）：${e.message}`);
+                  }
+                }
+              }
+
+              // 若该 issue 完全没有终态标签（手动关单但没贴终态标），补贴"已驳回"作为默认终态
+              if (terminalPresent.length === 0) {
+                try {
+                  // 确保"已驳回"标签存在
+                  try {
+                    await github.rest.issues.getLabel({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      name: '已驳回'
+                    });
+                  } catch (e) {
+                    if (e.status !== 404) throw e;
+                    await github.rest.issues.createLabel({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      name: '已驳回',
+                      color: 'd73a4a',
+                      description: '不予处理/已驳回的工单'
+                    });
+                    console.log(`标签「已驳回」不存在，已自动创建`);
+                  }
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo:  context.repo.repo,
+                    issue_number: issue.number,
+                    labels: ['已驳回']
+                  });
+                  console.log(`#${issue.number}：无终态标签，已补贴「已驳回」（默认）`);
+                } catch (e) {
+                  console.log(`#${issue.number}：补贴「已驳回」失败（忽略）：${e.message}`);
+                }
+              }
+
+              cleanedCount++;
+            }
+
+            console.log(`兜底扫描完成，共清理 ${cleanedCount} 个工单的残留标签`);
