@@ -989,6 +989,126 @@ jobs:
 
             console.log(`兜底扫描完成，共清理 ${cleanedCount} 个工单的残留标签`);
 
+            // ── 顺带扫一遍所有卡在"待确认"的工单，15 分钟超时自动关单 ──
+            // （事件触发兜底：不依赖 schedule cron，任何 issue 事件都会扫一次）
+            const TIMEOUT_MS = 15 * 60 * 1000;
+            const now = Date.now();
+            const allPending = [];
+            let page = 1;
+            const maxPages = 5;
+            while (page <= maxPages) {
+              const res = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                state: 'open',
+                labels: '待确认',
+                per_page: 100,
+                page
+              });
+              allPending.push(...res.data);
+              if (res.data.length < 100) break;
+              page++;
+            }
+            if (allPending.length > 0) {
+              let closedCount = 0;
+              for (const issue of allPending) {
+                const live = await github.rest.issues.get({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  issue_number: issue.number
+                });
+                const labels = (live.data.labels || []).map(l => l.name);
+                if (live.data.state !== 'open' || !labels.includes('待确认')) continue;
+
+                let lastTs = null;
+                let lastIntent = 'withdrawn';
+                try {
+                  const history = await github.rest.issues.listComments({
+                    owner: context.repo.owner,
+                    repo:  context.repo.repo,
+                    issue_number: issue.number,
+                    per_page: 100
+                  });
+                  const comments = [...history.data].reverse();
+                  for (const c of comments) {
+                    const m = (c.body || '').match(/PENDING_TS:(\d+)(?::(\w+))?/);
+                    if (m) {
+                      lastTs = parseInt(m[1], 10);
+                      lastIntent = m[2] || 'withdrawn';
+                      break;
+                    }
+                  }
+                } catch (e) {
+                  console.log(`[cleanup] #${issue.number}：拉取评论历史失败（忽略）：${e.message}`);
+                }
+                if (lastTs === null) continue;
+                if (now - lastTs < TIMEOUT_MS) continue;
+
+                const finalLabel = lastIntent === 'resolved'
+                  ? { name: '已完成', color: '2ea44f', description: '已完成处理的工单' }
+                  : { name: '已撤销', color: '8b0000', description: '用户主动撤销反馈，无需继续跟进' };
+                const finalReason = lastIntent === 'resolved' ? 'completed' : 'not_planned';
+
+                console.log(`[cleanup] #${issue.number}：超时 ${Math.round((now - lastTs) / 60000)} 分钟，执行关单（${finalLabel.name}）`);
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  issue_number: issue.number,
+                  body: [
+                    `⏰ **工单 #${issue.number} 已超时，自动关闭**`,
+                    ``,
+                    `本工单自 ${new Date(lastTs).toISOString()} 起处于"**待确认**"状态，超过 **15 分钟**未进行状态变更（既未确认关单、也未补充新反馈）。`,
+                    ``,
+                    `为保障工单池流转，已自动将其标记为 **${finalLabel.name}** 并关闭。`,
+                    ``,
+                    `📌 **如果问题仍未解决**：请**重新提交一个新工单**并补充说明具体情况，我们会继续跟进。`,
+                    ``,
+                    `> 本条为事件/定时扫描自动执行，如需继续处理本单可重新打开它（重开后机器人会自动摘除终态标签并回到待处理）。`
+                  ].join('\n')
+                });
+                try {
+                  await github.rest.issues.removeAllLabels({
+                    owner: context.repo.owner,
+                    repo:  context.repo.repo,
+                    issue_number: issue.number
+                  });
+                } catch (e) {
+                  if (e.status !== 404) throw e;
+                }
+                try {
+                  await github.rest.issues.getLabel({
+                    owner: context.repo.owner,
+                    repo:  context.repo.repo,
+                    name: finalLabel.name
+                  });
+                } catch (e) {
+                  if (e.status !== 404) throw e;
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo:  context.repo.repo,
+                    name: finalLabel.name,
+                    color: finalLabel.color,
+                    description: finalLabel.description
+                  });
+                }
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  issue_number: issue.number,
+                  labels: [finalLabel.name]
+                });
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  issue_number: issue.number,
+                  state: 'closed',
+                  state_reason: finalReason
+                });
+                closedCount++;
+              }
+              console.log(`[cleanup] 超时关单完成，共 ${closedCount} 个`);
+            }
+
   # ── 15 分钟超时自动关单：扫描卡在"待确认"的工单，到期未变更则按意图关单 ──
   # 触发条件：每 15 分钟 cron
   # 逻辑：
