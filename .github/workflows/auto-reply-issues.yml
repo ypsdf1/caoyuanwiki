@@ -8,6 +8,7 @@ on:
   schedule:
     - cron: '0 0 * * *'  # 每日 UTC 0:00（北京 08:00）兜底扫描
     - cron: '*/5 * * * *'  # 每 5 分钟扫描卡在"待确认"的工单，15 分钟超时自动关单
+  workflow_dispatch:  # 手动触发按钮（Actions 页面 → 本 workflow → Run workflow），用于立即扫描关单
 
 permissions:
   contents: read
@@ -890,7 +891,7 @@ jobs:
   #   若已有终态标签，但还有其它非终态标签 → 摘除那些非终态标签
   # 原则：宁可多摘也不错摘；终态标签定义固定为 已完成/已驳回/已撤销
   cleanup-closed:
-    if: github.event_name == 'issues' || github.event_name == 'issue_comment' || github.event_name == 'schedule'
+    if: github.event_name == 'issues' || github.event_name == 'issue_comment' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: 兜底扫描并清理残留标签
@@ -1121,7 +1122,7 @@ jobs:
   # 原则：15 分钟为硬上限，到期未变更 → 机器人直接关单（按意图选终态标签）并提示开新单；
   #       若工单在 15 分钟内已状态变更（摘掉待确认/关单/重开/新反馈），则跳过不处理
   timeout-pending:
-    if: github.event_name == 'schedule' || github.event_name == 'issues' || github.event_name == 'issue_comment'
+    if: github.event_name == 'schedule' || github.event_name == 'issues' || github.event_name == 'issue_comment' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: 扫描卡在待确认的工单，超时自动关单（已撤销）
